@@ -15,3 +15,11 @@ go back to when your memory will not server you well.
 - [Understanding the execution](./execution.md)
 - [Advanced debugging](./debugging.md)
 
+Pour ce cours et au cours des manipulations, nous allons utliser un QEMU qui va suimuluer une bord. Nous n'aurons donc pas de bord physique. 
+
+1 étape : Compréhension du Makefile   : make run
+En tant normale la toolchain (compilateur, assembleur, linker) produit un binaire machine pour une architecture précise.Or QEMU peut émuler un processeur précis. il faudra donc veiller à ce que les archectures soient les mêmes.
+Il faudra particulèrement veiller au type de processeur, l'architecture, l'adresse memoire, board, etc
+
+2 étape : lancer en mode debuger   : make debug
+
