@@ -1,0 +1,5 @@
+{
+  "debug.focusEditorOnBreak": false,
+  "debug.console.closeOnEnd": false,
+  "makefile.configureOnOpen": false,
+}

@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "WebFreak - QEMU - arm.boot",
+            "type": "gdb",
+            "request": "attach",
+            "target": ":1234",
+            "remote": true,
+            "executable": "./build/versatile/kernel.elf",
+            "cwd": "${workspaceFolder}",
+            "gdbpath": "gdb-multiarch",
+            "stopAtConnect": true,
+            "autorun": [
+                "set architecture auto",
+                "set confirm off"
+            ],
+            "preLaunchTask": "QEMU-DEBUG arm.boot", // see tasks.json
+        },
+        {
+            "name": "Microsoft -- QEMU arm.boot",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "build/versatile/kernel.elf", // path of binary to debug
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceRoot}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "gdb-multiarch", // path to gdb
+            "miDebuggerServerAddress": ":1234", // remote target
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true,
+                }
+            ],
+            "preLaunchTask": "Run QEMU as debug", // see tasks.json
+        }
+    ]
+}
