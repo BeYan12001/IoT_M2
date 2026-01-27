@@ -22,4 +22,5 @@ En tant normale la toolchain (compilateur, assembleur, linker) produit un binair
 Il faudra particulèrement veiller au type de processeur, l'architecture, l'adresse memoire, board, etc
 
 2 étape : lancer en mode debuger   : make debug
+Comme on utitlise un  similateur, il faut lancer deux terminales différents (un pour l'enrtée sortie de la borde simuler )et le deuxieme pour le mode debug. 
 
