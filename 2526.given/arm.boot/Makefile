@@ -12,7 +12,7 @@ BOARD=versatile
 MEMSIZE=16
 
 # Object files to build and link together
-objs= exception.o startup.o main.o uart.o
+objs= exception.o startup.o main.o uart.o timer.o
 
 #======================================================================
 # GENERIC PART OF THE MAKEFILE BELOW
@@ -32,7 +32,8 @@ ifeq ($(BOARD),versatile)
   MACHINE=versatilepb
 	# set compiler flags
   CFLAGS= -mcpu=$(GCPU) -DCPU=$(QCPU) -D$(CPU) -DMEMORY="($(MEMSIZE)*1024)"
-  CFLAGS+= -c -g -nostdlib -ffreestanding
+  CFLAGS+= -c -g -nostdlib -ffreestanding \
+         -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wundef
 	# set assembler flags
   ASFLAGS= -mcpu=$(GCPU) -g
   # set linker flags, also specifying the linker script file
