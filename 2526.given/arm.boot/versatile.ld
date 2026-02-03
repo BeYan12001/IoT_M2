@@ -48,6 +48,10 @@ SECTIONS
   *    nesting too many C function calls. 
   */
  . = ALIGN(8);
+ . = . + 0x400; /* 1KB of IRQ stack */
+ irq_stack_top = .;
+ 
+ . = ALIGN(8);
  . = . + 0x1000; /* 4KB of stack memory */
  stack_top = .;
  

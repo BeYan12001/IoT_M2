@@ -40,7 +40,12 @@ irq_handler_addr: .word _isr_handler
 fiq_handler_addr: .word _fiq_handler
 
 _isr_handler:
-    b _isr_handler
+    /* Save caller-saved registers and LR_irq */
+    stmfd sp!, {r0-r3, r12, lr}
+    bl isr_handler
+    ldmfd sp!, {r0-r3, r12, lr}
+    /* Return from IRQ */
+    subs pc, lr, #4
 
 _unused_handler:
     b _unused_handler // unused interrupt occurred
