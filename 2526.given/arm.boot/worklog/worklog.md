@@ -38,3 +38,52 @@ Comme le timer suit la cadence de l’horloge, il faudra convertir la fréquence
 Pour configurer le timer, il faut regarder où il est situé (quel périphérique) et également choisir quel timer on va utiliser. Il existe plusieurs types de timers (ils ont chacun des fonctionnalités différentes : interruptions, etc.).
 
 Ne pas oublier la fréquence finale pour la convertir en secondes, par exemple.
+
+## 5 étape : Les interruptions 
+
+Objectif : ne plus faire du polling sur l’UART et réagir uniquement quand une touche est pressée.
+
+Vue d’ensemble du flux : 
+-> Taper une touche 
+-> Le UART0 (PL011) reçoit un octet et lève une IRQ RX.
+-> Le VIC (contrôleur d’interruptions) relaie cette IRQ au CPU.
+-> Le CPU saute dans le vecteur d’IRQ (exception.s) et appelle le handler C.
+-> Le handler C lit les octets, affiche (echo), puis nettoie l’interruption. (code dans le hanlder, code a excuté)
+
+Graphique pour un meilleur visuel :
+
+            Interruption matérielle
+                    ↓
+            CPU entre en mode IRQ
+                    ↓
+            exception.s (assembleur)
+                    ↓
+            isr_handler()
+                    ↓
+            Lecture registre VIC
+                    ↓
+            Détection bit actif
+                    ↓
+            Appel irq_table[i].callback()
+
+
+
+mis en place :
+- Activation du contrôleur d’interruptions (VIC) et configuration d’une IRQ pour l’UART0.
+- Activation de l’interruption RX dans le PL011 (UART0) pour être notifié dès qu’un caractère arrive.
+- Gestionnaire d’IRQ côté assembleur qui sauvegarde/restaure les registres et appelle un handler C.
+- Handler C qui lit tous les octets disponibles et les ré-affiche (echo), puis nettoie l’interruption RX.
+- Boucle principale remplacée par `wfi()` pour mettre le CPU en attente et le réveiller par IRQ.
+
+Fichiers clés :
+- `irq.S` : fonctions bas niveau `_irqs_setup`, `_irqs_enable`, `_irqs_disable`, `_wfi`.
+- `exception.s` : vecteur d’exception + retour propre de l’IRQ.
+- `isr.c` : table des callbacks et dispatch des IRQ du VIC.
+- `main.c` : init UART0 IRQ + handler d’echo.
+- `versatile.ld` : ajout d’un petit stack IRQ (`irq_stack_top`).
+- `Makefile` : ajout de `irq.o` et `isr.o`.
+
+Notes / pièges :
+- Sans linker `irq.S`, les symboles `_irqs_*` et `_wfi` sont introuvables.
+- Il faut un stack IRQ dédié, sinon crash en entrée d’IRQ.
+- Après traitement, bien effacer le flag d’interruption RX (UART ICR), sinon IRQ plus jamais répétées car toujours levé. 
