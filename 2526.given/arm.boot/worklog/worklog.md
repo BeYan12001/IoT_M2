@@ -17,19 +17,26 @@ go back to when your memory will not server you well.
 
 Pour ce cours et au cours des manipulations, nous allons utliser un QEMU qui va suimuluer une bord. Nous n'aurons donc pas de bord physique. 
 
-## 1 étape : Compréhension du Makefile   : make run
-En tant normale la toolchain (compilateur, assembleur, linker) produit un binaire machine pour une architecture précise.Or QEMU peut émuler un processeur précis. il faudra donc veiller à ce que les archectures soient les mêmes.
-Il faudra particulèrement veiller au type de processeur, l'architecture, l'adresse memoire, board, etc
+## 1 étape : Compréhension du Makefile : `make run`
+La toolchain (compilateur, assembleur, linker) génère un binaire pour une architecture précise. QEMU émule un processeur tout aussi précis, donc les paramètres doivent correspondre.
+Points à vérifier dans le Makefile : type de CPU, architecture, adresse mémoire de chargement, board/plateforme ciblée, et options QEMU associées.
+PS: pour quitter Ctrl+a-c, puis "quit"  
 
-## 2 étape : lancer en mode debuger   : make debug
-Comme on utitlise un  similateur, il faut lancer deux terminales différents (un pour l'enrtée sortie de la borde simuler )et le deuxieme pour le mode debug. 
+## 2 étape : Lancer en mode débogueur : `make debug`
+Avec un simulateur, il faut deux terminaux :
+1) un terminal pour l’I/O de la board simulée (console série QEMU),
+2) un terminal pour le débogage (GDB/serveur de debug).
+Le bon déroulement dépend du bon couplage entre le port de debug ouvert par QEMU et la session GDB.
+Dans le cas d'une vrai board, le QEMU simule l'entrée/sortie de cette board, en plus de ca on a egalement le terminale de la machine. 
+PS: pour quitter Ctrl+a-c, puis "quit".
+Le mode debug n'est pas graphique, pour manipuler voir **gdb.md**.
 
+## 3 étape : Jouer sur l’envoi et le retour des caractères
+Objectif : valider l’I/O UART (entrée utilisateur + echo).
+Point d’attention : `clear` sur la console de la board (UART/QEMU) n’efface pas la console de mon terminal local, et inversement. Je n'ai pas eu le temps de corriger cela car ce n'est pas normal.
 
-## 3 étape : jouer sur l’envoi et le retour des caractères.
-Faire attention au fait que lorsque je clear la console de la board, c’est différent de clear ma propre console.
 
 ## 4 étape : le timer
-
 Comment marche un timer ?
 Le timer est une partie de la board qui va compter à la fréquence de l’horloge. On peut le configurer pour compter le temps, par exemple.
 
@@ -40,7 +47,6 @@ Pour configurer le timer, il faut regarder où il est situé (quel périphériqu
 Ne pas oublier la fréquence finale pour la convertir en secondes, par exemple.
 
 ## 5 étape : Les interruptions 
-
 Objectif : ne plus faire du polling sur l’UART et réagir uniquement quand une touche est pressée.
 
 Vue d’ensemble du flux : 
@@ -67,8 +73,8 @@ Graphique pour un meilleur visuel :
             Appel irq_table[i].callback()
 
 
-
 mis en place :
+- on réserve proprement une pile IRQ alignée, add stack.
 - Activation du contrôleur d’interruptions (VIC) et configuration d’une IRQ pour l’UART0.
 - Activation de l’interruption RX dans le PL011 (UART0) pour être notifié dès qu’un caractère arrive.
 - Gestionnaire d’IRQ côté assembleur qui sauvegarde/restaure les registres et appelle un handler C.

@@ -63,7 +63,7 @@ static void uart0_irq_handler(uint32_t irq, void *cookie)
   (void)cookie;
 
   uint8_t c;
-  while (uart_receive(UART0, &c)) {
+  while (uart_receive(UART0, &c)) {  // Le while est necessaire car plusieurs caractères peuvent être reçus, cas -> ou <-
     if (c == 13) {
       uart_send(UART0, '\r');
       uart_send(UART0, '\n');
@@ -100,18 +100,6 @@ void _start()
   irqs_setup();
   uart0_irq_init();
   irqs_enable();
- 
-  char buffer[10][15];
-  char bufferTimer[20];
-  for (int i = 0; i < 10; i++)
-  {
-    for (int j = 0; j < 15; j++)
-    {
-      buffer[i][j] = '.';
-    }
-  }
-
-  uint32_t last_second = 0;
 
   while (1)
   {
