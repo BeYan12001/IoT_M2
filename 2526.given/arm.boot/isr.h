@@ -70,8 +70,8 @@
  * VIC behavior:
  */
 void irqs_setup();
-void irqs_enable();
-void irqs_disable();
+void core_enable_interrupts();
+void core_disable_interrupts();
 void wfi(void);
 
 /*
