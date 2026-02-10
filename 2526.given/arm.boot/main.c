@@ -3,6 +3,7 @@
 #include "timer.h"
 #include "isr.h"
 #include "ring.h"
+#include "terminal_funct.h"
 
 /*
  * Define ECHO_ZZZ to have a periodic reminder that this code is polling
@@ -58,25 +59,6 @@ void uint_to_string(uint32_t num, char *buffer)
   buffer[j] = '\0';
 }
 
-void clear_line()
-{
-  uart_send(UART0, 27);
-  uart_send(UART0, '[');
-  uart_send(UART0, '2');
-  uart_send(UART0, 'K');
-}
-
-void clear_screen()
-{
-  uart_send(UART0, 27);
-  uart_send(UART0, '[');
-  uart_send(UART0, '2');
-  uart_send(UART0, 'J');
-  uart_send(UART0, 27);
-  uart_send(UART0, '[');
-  uart_send(UART0, 'H'); // home cursor
-}
-
 void shell(char *line, uint8_t offset)
 {
   if (offset == 5 &&
@@ -86,7 +68,7 @@ void shell(char *line, uint8_t offset)
       line[3] == 'a' &&
       line[4] == 'r')
   {
-    clear_screen();
+    clear_screen(UART0);
   }
   else
   {
@@ -127,12 +109,67 @@ uint8_t offset;
 
 void process_ring()
 {
+  static uint8_t esc_state = 0; // 0: normal, 1: got ESC, 2: got ESC[, 3: got ESC[3
   while (!ring_empty())
   {
     uint8_t code = ring_get();
 
-    uart_send(UART0, code);
+    if (esc_state == 0)
+    {
+      if (code == 27)
+      { // ESC
+        esc_state = 1;
+        continue;
+      }
+    }
+    else if (esc_state == 1)
+    {
+      if (code == '[')
+      {
+        esc_state = 2;
+        continue;
+      }
+      esc_state = 0; // pas une séquence valide
+    }
+    else if (esc_state == 2)
+    {
+      if (code == 'D')
+      {
+        cursor_left(UART0);
+      }
+      else if (code == 'C')
+      {
+        cursor_right(UART0);
+      }
+      else if (code == '3')
+      {
+        esc_state = 3;
+        continue;
+      }
+      esc_state = 0;
+      continue; // ne pas échoer dans la ligne
+    }
+    else if (esc_state == 3)
+    {
+      if (code == '~')
+      {
+        delete_char(UART0);
+      }
+      esc_state = 0;
+      continue; // ne pas échoer dans la ligne
+    }
 
+    if (code == '\b')
+    {
+      back_space(UART0);
+      if (offset > 0)
+      {
+        offset--;
+      }
+      continue;
+    }
+
+    // traitement normal
     if (code == '\r' || code == '\n')
     {
       shell(line, offset);
@@ -140,8 +177,12 @@ void process_ring()
     }
     else
     {
-      line[offset++] = (char)code;
+      if (offset < sizeof(line) - 1)
+      {
+        line[offset++] = (char)code;
+      }
     }
+    uart_send(UART0, code);
   }
 }
 
