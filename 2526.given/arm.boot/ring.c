@@ -1,31 +1,34 @@
 #include "ring.h"
 
+volatile uint32_t head = 0;
+volatile uint32_t tail = 0;
+volatile uint8_t buffer[MAX_CHARS];
 
-void ring_init(ring_t *r)
+bool_t ring_empty()
 {
-  r->head = 0;
-  r->tail = 0;
+  return (head == tail);
 }
 
-bool_t ring_empty(const ring_t *r)
+bool_t ring_full()
 {
-  return (r->head == r->tail) ? TRUE : FALSE;
+  int next = (head + 1) % MAX_CHARS;
+  return (next == tail);
 }
 
-void ring_put(ring_t *r, uint8_t v)
+void ring_put(uint8_t bits)
 {
-  uint32_t next = (r->head + 1u) & RING_MASK;
-  if (next == r->tail)
-    return; // drop if full
-  r->buf[r->head] = v;
-  r->head = next;
+  uint32_t next = (head + 1u) % MAX_CHARS;
+  if (next == tail)
+    return;
+  buffer[head] = bits;
+  head = next;
 }
 
-uint8_t ring_get(ring_t *r)
+uint8_t ring_get()
 {
-  if (r->head == r->tail)
-    return 0;
-  uint8_t v = r->buf[r->tail];
-  r->tail = (r->tail + 1u) & RING_MASK;
-  return v;
+  uint8_t bits;
+  uint32_t next = (tail + 1) % MAX_CHARS;
+  bits = buffer[tail];
+  tail = next;
+  return bits;
 }
