@@ -18,11 +18,11 @@ void irqs_setup() {
   _irqs_setup();
 }
 
-void irqs_enable() {
+void core_enable_interrupts() { 
   _irqs_enable();
 }
 
-void irqs_disable() {
+void core_disable_interrupts() {
   _irqs_disable();
 }
 
