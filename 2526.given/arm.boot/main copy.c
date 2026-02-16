@@ -176,6 +176,7 @@ void clear_line()
   uart_send(UART0, '2');
   uart_send(UART0, 'K');
 }
+/*
 void clear_screen()
 {
     uart_send(UART0, 27);
@@ -183,6 +184,7 @@ void clear_screen()
     uart_send(UART0, '2');
     uart_send(UART0, 'J');   // clear screen
 }
+*/
 
 
 void save_cursor()

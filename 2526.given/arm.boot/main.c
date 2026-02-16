@@ -26,6 +26,23 @@
 #define UART_TXIM (1 << 5) // Transmit Interrupt Mask
 #define UART_TXIC (1 << 5) // Transmit Interrupt Clear
 
+/* SP804 Timer1 registers (used for cursor blinking) */
+#define TIMER1_BASE 0x101E2020
+
+typedef struct
+{
+  volatile uint32_t Load;    // 0x00
+  volatile uint32_t Value;   // 0x04
+  volatile uint32_t Control; // 0x08
+  volatile uint32_t IntClr;  // 0x0C
+  volatile uint32_t RIS;     // 0x10
+  volatile uint32_t MIS;     // 0x14
+  volatile uint32_t BGLoad;  // 0x18
+} timer_regs_t;
+
+static timer_regs_t *timer1 = (timer_regs_t *)TIMER1_BASE;
+static volatile bool_t cursor_is_visible = FALSE;
+
 void panic()
 {
   while (1)
@@ -102,6 +119,42 @@ static void uart0_irq_init(void)
   mmio_set(UART0, UART_IMSC, UART_RXIM); // Interrupt Mask Set/Clear Register, UARTIMSC on page 3-17
   /* Enable UART0 interrupt in the VIC */
   irq_enable(UART0_IRQ, uart0_irq_handler, NULL);
+}
+
+static void timer1_irq_handler(uint32_t irq, void *cookie)
+{
+  (void)irq;
+  (void)cookie;
+
+  if (cursor_is_visible)
+  {
+    cursor_hide(UART0);
+    cursor_is_visible = FALSE;
+  }
+  else
+  {
+    cursor_show(UART0);
+    cursor_is_visible = TRUE;
+  }
+
+  /* Ack timer interrupt */
+  timer1->IntClr = 1;
+}
+
+static void timer1_irq_init(void)
+{
+  /*
+   * 1 MHz timer clock (configured in timer_init()).
+   * 500000 ticks -> 0.5s, so cursor toggles every 500 ms.
+   */
+  timer1->Control = 0x00;
+  timer1->Load = 200000;
+  timer1->BGLoad = 200000;
+  timer1->IntClr = 1;
+  /* Enable=1, Periodic=1, IntEnable=1, 32-bit counter */
+  timer1->Control = 0xE2;
+
+  irq_enable(TIMER1_IRQ, timer1_irq_handler, NULL);
 }
 
 char line[80];
@@ -197,28 +250,28 @@ void _start()
   uart_send_string(UART0, "  - Then type in \"quit\" to stop QEMU.\n");
   uart_send_string(UART0, "\n -- My console -- \n");
 
+  timer_init();
+
   irqs_setup();
   uart0_irq_init();
+  timer1_irq_init();
   core_enable_interrupts();
+
+  cursor_hide(UART0);
 
   while (1)
   {
 
-    // while (last< offset)
-    // wfi(); // plutot halt();
-    for (;;)
+    process_ring();
+    core_disable_interrupts();
+    if (ring_empty())
     {
-      process_ring();
-      core_disable_interrupts();
-      if (ring_empty())
-      {
-        core_enable_interrupts();
-        wfi();
-      }
-      else
-      {
-        core_enable_interrupts();
-      }
+      wfi();
+      core_enable_interrupts();
+    }
+    else
+    {
+      core_enable_interrupts();
     }
 
     // utliser circlar buffer, ring, producteur consommateur, LOCK free Ring

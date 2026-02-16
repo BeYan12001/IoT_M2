@@ -46,3 +46,23 @@ void cursor_right(void* uart)
   uart_send(uart, '[');
   uart_send(uart, 'C');
 }
+
+void cursor_hide(void* uart)
+{
+  uart_send(uart, 27);
+  uart_send(uart, '[');
+  uart_send(uart, '?');
+  uart_send(uart, '2');
+  uart_send(uart, '5');
+  uart_send(uart, 'l');
+}
+
+void cursor_show(void* uart)
+{
+  uart_send(uart, 27);
+  uart_send(uart, '[');
+  uart_send(uart, '?');
+  uart_send(uart, '2');
+  uart_send(uart, '5');
+  uart_send(uart, 'h');
+}

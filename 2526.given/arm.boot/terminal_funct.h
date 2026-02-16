@@ -17,4 +17,8 @@ void cursor_left(void* uart);
 
 void cursor_right(void* uart);
 
+void cursor_hide(void* uart);
+
+void cursor_show(void* uart);
+
 #endif
