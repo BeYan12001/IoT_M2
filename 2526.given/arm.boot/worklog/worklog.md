@@ -46,6 +46,30 @@ Pour configurer le timer, il faut regarder où il est situé (quel périphériqu
 
 Ne pas oublier la fréquence finale pour la convertir en secondes, par exemple.
 
+### Pourquoi utiliser une interruption timer ?
+Pour une action périodique (ex: clignotement du curseur), il y a deux approches :
+
+1) **Polling dans la boucle `main`**  
+
+2) **Interruption timer**  
+On programme le timer pour lever une IRQ périodique (ex: toutes les 500 ms), puis on exécute l’action dans le handler IRQ.
+- Avantage: déclenchement régulier et plus déterministe.
+- Avantage: compatible avec `wfi()` (CPU dort entre événements, puis se réveille sur IRQ).
+- Avantage: la boucle `main` reste simple (traitement applicatif), le timing périodique est géré par le matériel.
+
+### Lien avec notre code
+Dans mon implémentation, le clignotement du curseur est fait par IRQ timer :
+- le timer est configuré en mode périodique,
+- chaque interruption alterne `cursor_show(UART0)` et `cursor_hide(UART0)`,
+- on efface le flag d’interruption (`IntClr`) dans le handler.
+
+Pour des événements périodiques, l’interruption timer est plus propre et plus robuste que compter dans la boucle `main` avec des conditions. En effet, le Polling dans la boucle `main` vérifie tout le temps, même quand rien ne se passe (CPU occupé inutilement).
+
+
+
+
+
+
 ## 5 étape : Les interruptions 
 Objectif : ne plus faire du polling sur l’UART et réagir uniquement quand une touche est pressée.
 
@@ -93,3 +117,13 @@ Notes / pièges :
 - Sans linker `irq.S`, les symboles `_irqs_*` et `_wfi` sont introuvables.
 - Il faut un stack IRQ dédié, sinon crash en entrée d’IRQ.
 - Après traitement, bien effacer le flag d’interruption RX (UART ICR), sinon IRQ plus jamais répétées car toujours levé. 
+
+
+## - étape : Ring method
+L’idée est: 
+- Utiliser un buffer circulaire de taille fixe, afin d’éviter toute gestion dynamique de la mémoire.
+- L’implémenter de manière à permettre une utilisation concurrente, tout en restant sans verrou (lock-free).
+
+Buffer circulaire :
+Il sert de canal de communication entre l’interruption (ISR) et la boucle principale.
+Cette méthode permet d’éviter un buffer de taille variable et de prévenir les débordements (overflow).
