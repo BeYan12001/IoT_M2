@@ -10,16 +10,6 @@
 #define SYSCON_BASE 0x101E0000
 #define TIMCLK_OFFSET 0x04  // Timer Clock Control register offset
 
-typedef struct {
-    volatile uint32_t Load;      // 0x00
-    volatile uint32_t Value;     // 0x04
-    volatile uint32_t Control;   // 0x08
-    volatile uint32_t IntClr;    // 0x0C
-    volatile uint32_t RIS;       // 0x10
-    volatile uint32_t MIS;       // 0x14
-    volatile uint32_t BGLoad;    // 0x18
-} timer_regs_t;
-
 static timer_regs_t* timer = (timer_regs_t*)TIMER0_BASE;
 static volatile uint32_t tick_count = 0;
 
