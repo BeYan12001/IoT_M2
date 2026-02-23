@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "main.h"
 
+void print_prompt(void* uart);
 
 void clear_screen(void* uart);
 

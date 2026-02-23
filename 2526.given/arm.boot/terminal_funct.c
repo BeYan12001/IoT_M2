@@ -1,5 +1,14 @@
 #include "terminal_funct.h"
 
+
+void print_prompt(void* uart)
+{
+    uart_send(uart, '\r');
+    uart_send(uart, '\n');
+    uart_send_string(uart, "yan@user$:");
+}
+
+
 void clear_screen(void* uart)
 {
   uart_send(uart, 27);
@@ -30,8 +39,6 @@ void delete_char(void* uart)
   uart_send(uart, '[');
   uart_send(uart, 'P');
 }
-
-
 
 void cursor_left(void* uart)
 {
@@ -66,3 +73,5 @@ void cursor_show(void* uart)
   uart_send(uart, '5');
   uart_send(uart, 'h');
 }
+
+
