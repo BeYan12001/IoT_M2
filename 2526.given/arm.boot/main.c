@@ -14,85 +14,121 @@
  */
 #define ECHO_ZZZ
 
-/* PL011 UART interrupt registers */
-#define UART_IMSC 0x38 // Interrupt Mask Set/Clear Register
-#define UART_ICR 0x44  // Interrupt Clear Register, Dire au device d'effacer le flag interruptions
-#define UART_RIS 0x3C  // Raw Interrupt Status Register
-#define UART_IFLS 0x34 // Interrupt FIFO Level Select Register,
 
-/* PL011 UART interrupt bits */
-#define UART_RXIM (1 << 4) // Receive Interrupt Mask
-#define UART_RXIC (1 << 4) // Receive Interrupt Clear
-#define UART_TXIM (1 << 5) // Transmit Interrupt Mask
-#define UART_TXIC (1 << 5) // Transmit Interrupt Clear
-
-/* SP804 Timer1 registers (used for cursor blinking) */
-#define TIMER1_BASE 0x101E2020
-
-typedef struct
+struct event
 {
-  volatile uint32_t Load;    // 0x00
-  volatile uint32_t Value;   // 0x04
-  volatile uint32_t Control; // 0x08
-  volatile uint32_t IntClr;  // 0x0C
-  volatile uint32_t RIS;     // 0x10
-  volatile uint32_t MIS;     // 0x14
-  volatile uint32_t BGLoad;  // 0x18
-} timer_regs_t;
+  void *cookie;
+  void (*react)(void *cookie);
+  uint64_t eta; // Estimated Time of Arrival
+  struct event *next;
+  volatile bool_t posted;
+};
+
+static void rx_bottom_handler(void *cookie);
+static void blink_bottom_handler(void *cookie);
 
 static timer_regs_t *timer1 = (timer_regs_t *)TIMER1_BASE;
 static volatile bool_t cursor_is_visible = FALSE;
+static struct event rx_event = {.cookie = NULL, .react = rx_bottom_handler, .eta = 0, .next = NULL, .posted = FALSE};
+static struct event blink_event = {.cookie = NULL, .react = blink_bottom_handler, .eta = 0, .next = NULL, .posted = FALSE};
 
-void panic()
+static void process_ring(void);
+
+static void qemu_exit(void)
 {
-  while (1)
-    ;
+  /* ARM semihosting: SYS_EXIT (0x18) with ADP_Stopped_ApplicationExit (0x20026) */
+  register uint32_t r0 asm("r0") = 0x18;
+  register uint32_t r1 asm("r1") = 0x20026;
+  asm volatile("svc 0x00123456" : : "r"(r0), "r"(r1));
+  while (1); /* ne devrait pas arriver */
 }
 
-// Fonction simple pour convertir un nombre en chaîne
-void uint_to_string(uint32_t num, char *buffer)
-{
-  char temp[20];
-  int i = 0;
+static struct event *ready_head = NULL;
 
-  if (num == 0)
-  {
-    buffer[0] = '0';
-    buffer[1] = '\0';
+static char input_line[80];
+static uint8_t input_offset = 0;
+
+static void event_post_front(struct event *evt)
+{
+  if (evt->posted)
     return;
-  }
-
-  while (num > 0)
-  {
-    temp[i++] = '0' + (num % 10);
-    num /= 10;
-  }
-
-  int j = 0;
-  while (i > 0)
-  {
-    buffer[j++] = temp[--i];
-  }
-  buffer[j] = '\0';
+  evt->posted = TRUE;
+  evt->next = ready_head;
+  ready_head = evt;
 }
 
-void shell(char *line, uint8_t offset)
+static struct event *event_pop(void)
 {
-  if (offset == 5 &&
-      line[0] == 'c' &&
-      line[1] == 'l' &&
-      line[2] == 'e' &&
-      line[3] == 'a' &&
-      line[4] == 'r')
+  struct event *evt = ready_head;
+  if (evt == NULL)
+    return NULL;
+  ready_head = evt->next;
+  evt->next = NULL;
+  evt->posted = FALSE;
+  return evt;
+}
+
+static void sleep_until_next_event(void)
+{
+  core_disable_interrupts();
+  if (ready_head == NULL)
+  {
+    wfi();
+  }
+  core_enable_interrupts();
+}
+
+
+
+void shell(char *cmd_line, uint8_t cmd_len)
+{
+  if (cmd_len == 5 &&
+      cmd_line[0] == 'c' &&
+      cmd_line[1] == 'l' &&
+      cmd_line[2] == 'e' &&
+      cmd_line[3] == 'a' &&
+      cmd_line[4] == 'r')
   {
     clear_screen(UART0);
+    print_prompt(UART0);
+  }
+  else if (cmd_len == 4 &&
+           cmd_line[0] == 'q' &&
+           cmd_line[1] == 'u' &&
+           cmd_line[2] == 'i' &&
+           cmd_line[3] == 't')
+  {
+    uart_send_string(UART0, "\r\nBye!\r\n");
+    qemu_exit();
   }
   else
   {
-    uart_send(UART0, '\r');
-    uart_send(UART0, '\n');
+   print_prompt(UART0);
   }
 }
+
+
+static void rx_bottom_handler(void *cookie)
+{
+  (void)cookie;
+  process_ring();
+}
+
+static void blink_bottom_handler(void *cookie)
+{
+  (void)cookie;
+  if (cursor_is_visible)
+  {
+    cursor_hide(UART0);
+    cursor_is_visible = FALSE;
+  }
+  else
+  {
+    cursor_show(UART0);
+    cursor_is_visible = TRUE;
+  }
+}
+
 
 static void uart0_irq_handler(uint32_t irq, void *cookie)
 {
@@ -109,6 +145,7 @@ static void uart0_irq_handler(uint32_t irq, void *cookie)
 
   /* Clear RX interrupt */
   mmio_write32(UART0, UART_ICR, UART_RXIC); // Netooyer le flag d'interruption
+  event_post_front(&rx_event);
 }
 
 static void uart0_irq_init(void)
@@ -126,19 +163,9 @@ static void timer1_irq_handler(uint32_t irq, void *cookie)
   (void)irq;
   (void)cookie;
 
-  if (cursor_is_visible)
-  {
-    cursor_hide(UART0);
-    cursor_is_visible = FALSE;
-  }
-  else
-  {
-    cursor_show(UART0);
-    cursor_is_visible = TRUE;
-  }
-
   /* Ack timer interrupt */
   timer1->IntClr = 1;
+  event_post_front(&blink_event);
 }
 
 static void timer1_irq_init(void)
@@ -157,10 +184,7 @@ static void timer1_irq_init(void)
   irq_enable(TIMER1_IRQ, timer1_irq_handler, NULL);
 }
 
-char line[80];
-uint8_t offset;
-
-void process_ring()
+static void process_ring(void)
 {
   static uint8_t esc_state = 0; // 0: normal, 1: got ESC, 2: got ESC[, 3: got ESC[3
   while (!ring_empty())
@@ -212,12 +236,12 @@ void process_ring()
       continue; // ne pas échoer dans la ligne
     }
 
-    if (code == '\b')
+    if (code == '\b' || code == 127)
     {
-      back_space(UART0);
-      if (offset > 0)
+      if (input_offset > 0)
       {
-        offset--;
+        input_offset--;
+        back_space(UART0);
       }
       continue;
     }
@@ -225,14 +249,15 @@ void process_ring()
     // traitement normal
     if (code == '\r' || code == '\n')
     {
-      shell(line, offset);
-      offset = 0;
+      shell(input_line, input_offset);
+      input_offset = 0;
+       continue;  
     }
     else
     {
-      if (offset < sizeof(line) - 1)
+      if (input_offset < sizeof(input_line) - 1)
       {
-        line[offset++] = (char)code;
+        input_line[input_offset++] = (char)code;
       }
     }
     uart_send(UART0, code);
@@ -258,22 +283,19 @@ void _start()
   core_enable_interrupts();
 
   cursor_hide(UART0);
+  cursor_is_visible = FALSE;
+  print_prompt(UART0);
 
   while (1)
   {
-
-    process_ring();
-    core_disable_interrupts();
-    if (ring_empty())
+    struct event *evt = event_pop();
+    if (evt != NULL)
     {
-      wfi();
-      core_enable_interrupts();
+      evt->react(evt->cookie);
     }
     else
     {
-      core_enable_interrupts();
+      sleep_until_next_event();
     }
-
-    // utliser circlar buffer, ring, producteur consommateur, LOCK free Ring
   }
 }
