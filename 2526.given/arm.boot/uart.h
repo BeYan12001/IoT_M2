@@ -17,6 +17,18 @@
 #define UART1 (void*)0x101f2000
 #define UART2 (void*)0x101f3000
 
+/* PL011 UART interrupt registers */
+#define UART_IMSC 0x38 // Interrupt Mask Set/Clear Register
+#define UART_ICR 0x44  // Interrupt Clear Register, Dire au device d'effacer le flag interruptions
+#define UART_RIS 0x3C  // Raw Interrupt Status Register
+#define UART_IFLS 0x34 // Interrupt FIFO Level Select Register,
+
+/* PL011 UART interrupt bits */
+#define UART_RXIM (1 << 4) // Receive Interrupt Mask
+#define UART_RXIC (1 << 4) // Receive Interrupt Clear
+#define UART_TXIM (1 << 5) // Transmit Interrupt Mask
+#define UART_TXIC (1 << 5) // Transmit Interrupt Clear
+
 /*
  * Receive a byte from the given uart, this is a non-blocking call.
  * Returns 0 if there are no byte available.
@@ -38,5 +50,7 @@ void uart_send(void* uart, uint8_t b);
  */
 void uart_send_string(void* uart, const unsigned char *s);
 
+// Fonction simple pour convertir un nombre en chaîne
+void uint_to_string(uint32_t num, char *buffer);
 
 #endif /* _UART_H_ */

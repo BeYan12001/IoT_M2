@@ -64,3 +64,31 @@ void uart_send_string(void* uart, const unsigned char *s) {
     s++;
   }
 }
+
+// Fonction simple pour convertir un nombre en chaîne
+void uint_to_string(uint32_t num, char *buffer)
+{
+  char temp[20];
+  int i = 0;
+
+  if (num == 0)
+  {
+    buffer[0] = '0';
+    buffer[1] = '\0';
+    return;
+  }
+
+  while (num > 0)
+  {
+    temp[i++] = '0' + (num % 10);
+    num /= 10;
+  }
+
+  int j = 0;
+  while (i > 0)
+  {
+    buffer[j++] = temp[--i];
+  }
+  buffer[j] = '\0';
+}
+
