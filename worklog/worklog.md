@@ -2,22 +2,24 @@
 
 Pour ce cours et au cours des manipulations, je vais utliser un QEMU qui va simuler une board. Je n'ai donc pas de board physique. 
 
-## Comment build le repo ?
+### Comment build le repo ?
 
 ```bash
+cd arm.boot
 make
 ```
 Le Makefile compile les sources C et assembleur avec la toolchain ARM (`arm-none-eabi-gcc`), puis génère un binaire ELF.
 
-## Comment l'exécuter ?
+### Comment l'exécuter ?
 
 ```bash
+cd arm.boot
 make run
 ```
 Lance QEMU avec la board `versatilepb`, charge le binaire et ouvre la console série sur le terminal courant.
 Pour quitter : `Ctrl+a c` puis taper `quit` dans la console QEMU, ou taper `quit` directement dans la console de la board.
 
-## Ce qui marche
+### Ce qui marche
 - Affichage UART (echo des caractères)
 - Interruptions UART0 (RX)
 - Timer1 en mode périodique (interruption toutes les 500 ms)
@@ -28,7 +30,7 @@ Pour quitter : `Ctrl+a c` puis taper `quit` dans la console QEMU, ou taper `quit
 - Affichage du status en haut de l'écran (temps écoulé, nombre d'événements)
 - `wfi()` : le CPU dort entre deux événements
 
-## Ce qui ne marche pas / limitations
+### Ce qui ne marche pas / limitations
 - `clear` sur la console QEMU n'efface pas le terminal local (et inversement)
 - Le compteur `secondes` compte en réalité des demi-secondes (toggle curseur toutes les 500 ms) en plus c'est int donc limité à 16bits. Crash après.
 - Pas de gestion des événements temporisés (`eta` non exploité)
@@ -189,4 +191,5 @@ L’idée est:
 Buffer circulaire :
 Il sert de canal de communication entre l’interruption (ISR) et la boucle principale.
 Cette méthode permet d’éviter un buffer de taille variable et de prévenir les débordements (overflow).
-
+il faut donc deux rings, un pour la trasnmissions, un stcuture complete de rings. Quand l'uart est saturé , on met dans la ring, des que la ring est vide on repasse a l'uart.
+Est ce que dans mon cas l'uart est saturé ?
