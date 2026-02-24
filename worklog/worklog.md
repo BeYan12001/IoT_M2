@@ -2,15 +2,51 @@
 
 Pour ce cours et au cours des manipulations, je vais utliser un QEMU qui va simuler une board. Je n'ai donc pas de board physique. 
 
+**Comment build le repo ?**
+
+```bash
+cd arm.boot
+make
+```
+Le Makefile compile les sources C et assembleur avec la toolchain ARM (`arm-none-eabi-gcc`), puis génère un binaire ELF.
+
+**Comment l'exécuter ?**
+
+```bash
+cd arm.boot
+make run
+```
+Lance QEMU avec la board `versatilepb`, charge le binaire et ouvre la console série sur le terminal courant.
+Pour quitter : `Ctrl+a c` puis taper `quit` dans la console QEMU, ou taper `quit` directement dans la console de la board.
+
+**Ce qui marche**
+- Affichage UART (echo des caractères)
+- Interruptions UART0 (RX)
+- Timer1 en mode périodique (interruption toutes les 500 ms)
+- Clignotement du curseur (top-half/bottom-half)
+- Ring buffer (communication ISR ↔ boucle principale)
+- Commandes shell : `clear`, `quit`, `echo <texte>`
+- Flèches gauche/droite, backspace, delete
+- Affichage du status en haut de l'écran (temps écoulé, nombre d'événements)
+- `wfi()` : le CPU dort entre deux événements
+
+**Ce qui ne marche pas / limitations**
+- `clear` sur la console QEMU n'efface pas le terminal local (et inversement)
+- Le compteur `secondes` compte en réalité des demi-secondes (toggle curseur toutes les 500 ms) en plus c'est int donc limité à 16bits. Crash après.
+- Pas de gestion des événements temporisés (`eta` non exploité)
+- Pas de support multi-commandes ou d'historique
+- Surveiller la taille MEMSIZE=32 dans le Makefile car parfois on la dépasse 
+
+
+
 ## 1 étape : Compréhension du Makefile : `make run`
 La toolchain (compilateur, assembleur, linker) génère un binaire pour une architecture précise. QEMU émule un processeur tout aussi précis, donc les paramètres doivent correspondre.
 Points à vérifier dans le Makefile : type de CPU, architecture, adresse mémoire de chargement, board/plateforme ciblée, et options QEMU associées.
 
 PS: pour quitter Ctrl+a-c, puis "quit"  
 
-Autre possibilité :
+**Autre possibilité :**
 Dans le terminal de la board simulée, la commande quit fonctionne également.
-
 Cela est rendu possible grâce à l’option -semihosting ajoutée dans les cibles run et debug du Makefile.Le semihosting permet au programme embarqué de dialoguer directement avec QEMU pour certaines opérations système.
 
 Dans main.c, la fonction qemu_exit() utilise le mécanisme de semihosting ARM (appel système SYS_EXIT via svc 0x00123456) afin de demander à QEMU de s’arrêter proprement.
@@ -33,7 +69,7 @@ Point d’attention : `clear` sur la console de la board (UART/QEMU) n’efface 
 **Memo :** 
 Un timer est un compteur automatique basé sur l’horloge du microcontrôleur qui permet de mesurer le temps ou de déclencher des actions à intervalles précis.
 
-Comment marche un timer ? 
+*Comment marche un timer ?*
 Le timer est une partie de la board qui va compter à la fréquence de l’horloge. On peut le configurer pour compter le temps, par exemple. Comme le timer suit la cadence de l’horloge, il faudra convertir la fréquence en temps. La fréquence étant très élevée, il faut normalement diminuer la fréquence de l’horloge si possible, sinon utiliser un prescaler, qui divisera la fréquence.
 
 Pour configurer le timer, il faut regarder où il est situé (quel périphérique) et également choisir quel timer on va utiliser. Il existe plusieurs types de timers (ils ont chacun des fonctionnalités différentes : interruptions, etc.).
@@ -59,7 +95,7 @@ Dans mon implémentation, le clignotement du curseur est fait par IRQ timer :
 Pour des événements périodiques, l’interruption timer est plus propre et plus robuste que compter dans la boucle `main` avec des conditions. En effet, le Polling dans la boucle `main` vérifie tout le temps, même quand rien ne se passe.
 
 **Notes / pièges :**
-- Bien choisir la fréquence du timer et faire attention a la fréuquence de l'horloge pour calculer un temps coherent. 
+- Bien choisir la fréquence du timer et faire attention a la fréuence de l'horloge pour calculer un temps coherent. 
 - Si le timer génère des interruptions fréquentes, le programme principal n’a plus de temps d’exécution
 - Ne pas oublier la fréquence finale pour la convertir en secondes, par exemple.
 
@@ -148,12 +184,9 @@ Pourquoi c’est utile :
 - Un bottom-handler ne doit pas être posté en double (`posted`).
 
 
-## - étape : Ring method
-L’idée est: 
-- Utiliser un buffer circulaire de taille fixe, afin d’éviter toute gestion dynamique de la mémoire.
-- L’implémenter de manière à permettre une utilisation concurrente, tout en restant sans verrou (lock-free).
+## 7 étape : Ring method
+La méthode du ring buffer consiste à utiliser un buffer circulaire de taille fixe pour assurer une communication sûre entre l’ISR UART et la boucle principale, sans allocation dynamique ni verrou. Deux buffers sont nécessaires : un pour la transmission (TX) et un pour la réception (RX). En transmission, la boucle principale écrit les données dans le ring TX, puis l’ISR les envoie vers l’UART dès que le matériel est prêt. En réception, l’ISR lit les données de l’UART et les place dans le ring RX pour traitement ultérieur.
 
-Buffer circulaire :
-Il sert de canal de communication entre l’interruption (ISR) et la boucle principale.
-Cette méthode permet d’éviter un buffer de taille variable et de prévenir les débordements (overflow).
-
+Le système est saturé si le débit de production dépasse la capacité de transmission de l’UART, ce qui provoque un remplissage complet du ring. Si le ring se vide régulièrement, le débit est suffisant. 
+**Attention**
+Avec les FIFO TX désactivées (comme sous QEMU), l’UART ne transmet qu’un octet à la fois, ce qui rend le ring essentiel pour absorber les variations de débit et éviter les pertes de données.

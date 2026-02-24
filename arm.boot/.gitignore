@@ -1,0 +1,22 @@
+# Fichiers compilés
+*.o
+*.elf
+*.bin
+*.map
+*.lst
+*.d
+
+# Fichiers générés par make
+build/
+out/
+
+# Fichiers temporaires
+*.tmp
+*.swp
+*~
+
+# Fichiers Windows
+IndexerVolumeGuid
+System\ Volume\ Information/
+Thumbs.db
+Desktop.ini
