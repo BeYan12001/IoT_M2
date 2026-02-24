@@ -5,6 +5,7 @@
 #include "isr.h"
 #include "ring.h"
 #include "terminal_funct.h"
+#include "function_main.h"
 
 /*
  * Define ECHO_ZZZ to have a periodic reminder that this code is polling
@@ -19,8 +20,8 @@ int secondes = 0;
 int event_count = 0;  // events en attente dans la queue
 int total_events = 0; // compteur total, ne décrémente jamais
 static struct event *ready_head = NULL;
-static char input_line[80];
-static uint8_t input_offset = 0;
+char input_line[80];
+uint8_t input_offset = 0;
 
 static void rx_bottom_handler(void *cookie);
 static void blink_bottom_handler(void *cookie);
@@ -29,8 +30,6 @@ static timer_regs_t *timer1 = (timer_regs_t *)TIMER1_BASE;
 static volatile bool_t cursor_is_visible = FALSE;
 static struct event rx_event = {.cookie = NULL, .react = rx_bottom_handler, .eta = 0, .next = NULL, .posted = FALSE};
 static struct event blink_event = {.cookie = NULL, .react = blink_bottom_handler, .eta = 0, .next = NULL, .posted = FALSE};
-
-static void process_ring(void);
 
 static void sleep_until_next_event(void)
 {
@@ -73,7 +72,6 @@ void shell(char *cmd_line, uint8_t cmd_len)
   {
     uart_send_string(UART0, "\r\nEchoing: ");
     uart_send_string(UART0, cmd_line + 5);
-    uart_send_string(UART0, "\r\n");
     print_prompt(UART0);
   }
   else
@@ -85,7 +83,7 @@ void shell(char *cmd_line, uint8_t cmd_len)
 static void rx_bottom_handler(void *cookie)
 {
   (void)cookie;
-  process_ring();
+  process_ring(input_line, &input_offset);
 }
 
 static void blink_bottom_handler(void *cookie)
@@ -159,85 +157,6 @@ static void timer1_irq_init(void)
   irq_enable(TIMER1_IRQ, timer1_irq_handler, NULL);
 }
 
-static void process_ring(void)
-{
-  static uint8_t esc_state = 0; // 0: normal, 1: got ESC, 2: got ESC[, 3: got ESC[3
-  while (!ring_empty())
-  {
-    uint8_t code = ring_get();
-
-    if (esc_state == 0)
-    {
-      if (code == 27)
-      { // ESC
-        esc_state = 1;
-        continue;
-      }
-    }
-    else if (esc_state == 1)
-    {
-      if (code == '[')
-      {
-        esc_state = 2;
-        continue;
-      }
-      esc_state = 0; // pas une séquence valide
-    }
-    else if (esc_state == 2)
-    {
-      if (code == 'D')
-      {
-        cursor_left(UART0);
-      }
-      else if (code == 'C')
-      {
-        cursor_right(UART0);
-      }
-      else if (code == '3')
-      {
-        esc_state = 3;
-        continue;
-      }
-      esc_state = 0;
-      continue; // ne pas échoer dans la ligne
-    }
-    else if (esc_state == 3)
-    {
-      if (code == '~')
-      {
-        delete_char(UART0);
-      }
-      esc_state = 0;
-      continue; // ne pas échoer dans la ligne
-    }
-
-    if (code == '\b' || code == 127)
-    {
-      if (input_offset > 0)
-      {
-        input_offset--;
-        back_space(UART0);
-      }
-      continue;
-    }
-
-    // traitement normal
-    if (code == '\r' || code == '\n')
-    {
-      shell(input_line, input_offset);
-      input_offset = 0;
-      continue;
-    }
-    else
-    {
-      if (input_offset < sizeof(input_line) - 1)
-      {
-        input_line[input_offset++] = (char)code;
-      }
-    }
-    uart_send(UART0, code);
-  }
-}
 
 /**
  * This is the C entry point, upcalled once the hardware has been setup properly
