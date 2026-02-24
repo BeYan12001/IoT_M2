@@ -21,7 +21,7 @@ void display_status(void *uart, int secondes, int total_events)
   uart_send_string(uart, "Passing time : ");
   uint_to_string(secondes, buffer_time);
   uart_send_string(uart, buffer_time);
-  uart_send_string(uart, " ms, % cpu usage, ");
+  uart_send_string(uart, " seconds, ");
   uint_to_string(total_events, buffer_events);
   uart_send_string(uart, buffer_events);
   uart_send_string(uart, " events, updated every second");
