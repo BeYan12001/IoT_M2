@@ -2,6 +2,39 @@
 
 Pour ce cours et au cours des manipulations, je vais utliser un QEMU qui va simuler une board. Je n'ai donc pas de board physique. 
 
+## Comment build le repo ?
+
+```bash
+make
+```
+Le Makefile compile les sources C et assembleur avec la toolchain ARM (`arm-none-eabi-gcc`), puis génère un binaire ELF.
+
+## Comment l'exécuter ?
+
+```bash
+make run
+```
+Lance QEMU avec la board `versatilepb`, charge le binaire et ouvre la console série sur le terminal courant.
+Pour quitter : `Ctrl+a c` puis taper `quit` dans la console QEMU, ou taper `quit` directement dans la console de la board.
+
+## Ce qui marche
+- Affichage UART (echo des caractères)
+- Interruptions UART0 (RX)
+- Timer1 en mode périodique (interruption toutes les 500 ms)
+- Clignotement du curseur (top-half/bottom-half)
+- Ring buffer (communication ISR ↔ boucle principale)
+- Commandes shell : `clear`, `quit`, `echo <texte>`
+- Flèches gauche/droite, backspace, delete
+- Affichage du status en haut de l'écran (temps écoulé, nombre d'événements)
+- `wfi()` : le CPU dort entre deux événements
+
+## Ce qui ne marche pas / limitations
+- `clear` sur la console QEMU n'efface pas le terminal local (et inversement)
+- Le compteur `secondes` compte en réalité des demi-secondes (toggle curseur toutes les 500 ms) en plus c'est int donc limité à 16bits. Crash après.
+- Pas de gestion des événements temporisés (`eta` non exploité)
+- Pas de support multi-commandes ou d'historique
+
+
 ## 1 étape : Compréhension du Makefile : `make run`
 La toolchain (compilateur, assembleur, linker) génère un binaire pour une architecture précise. QEMU émule un processeur tout aussi précis, donc les paramètres doivent correspondre.
 Points à vérifier dans le Makefile : type de CPU, architecture, adresse mémoire de chargement, board/plateforme ciblée, et options QEMU associées.
@@ -59,7 +92,7 @@ Dans mon implémentation, le clignotement du curseur est fait par IRQ timer :
 Pour des événements périodiques, l’interruption timer est plus propre et plus robuste que compter dans la boucle `main` avec des conditions. En effet, le Polling dans la boucle `main` vérifie tout le temps, même quand rien ne se passe.
 
 **Notes / pièges :**
-- Bien choisir la fréquence du timer et faire attention a la fréuquence de l'horloge pour calculer un temps coherent. 
+- Bien choisir la fréquence du timer et faire attention a la fréuence de l'horloge pour calculer un temps coherent. 
 - Si le timer génère des interruptions fréquentes, le programme principal n’a plus de temps d’exécution
 - Ne pas oublier la fréquence finale pour la convertir en secondes, par exemple.
 
