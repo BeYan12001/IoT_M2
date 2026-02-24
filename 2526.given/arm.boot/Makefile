@@ -9,10 +9,10 @@ BOARD=versatile
 
 # Number of KB to be used, try first with 16,
 # later on, you will need more, but less than 1024.
-MEMSIZE=16
+MEMSIZE=32
 
 # Object files to build and link together
-objs= exception.o startup.o irq.o main.o uart.o timer.o isr.o ring.o terminal_funct.o
+objs= exception.o startup.o irq.o main.o uart.o timer.o isr.o ring.o terminal_funct.o event.o
 
 #======================================================================
 # GENERIC PART OF THE MAKEFILE BELOW

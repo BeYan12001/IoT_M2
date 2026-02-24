@@ -1,5 +1,6 @@
 #include "main.h"
 #include "uart.h"
+#include "event.h"
 #include "timer.h"
 #include "isr.h"
 #include "ring.h"
@@ -14,15 +15,12 @@
  */
 #define ECHO_ZZZ
 
-
-struct event
-{
-  void *cookie;
-  void (*react)(void *cookie);
-  uint64_t eta; // Estimated Time of Arrival
-  struct event *next;
-  volatile bool_t posted;
-};
+int secondes = 0;
+int event_count = 0;  // events en attente dans la queue
+int total_events = 0; // compteur total, ne décrémente jamais
+static struct event *ready_head = NULL;
+static char input_line[80];
+static uint8_t input_offset = 0;
 
 static void rx_bottom_handler(void *cookie);
 static void blink_bottom_handler(void *cookie);
@@ -34,40 +32,6 @@ static struct event blink_event = {.cookie = NULL, .react = blink_bottom_handler
 
 static void process_ring(void);
 
-static void qemu_exit(void)
-{
-  /* ARM semihosting: SYS_EXIT (0x18) with ADP_Stopped_ApplicationExit (0x20026) */
-  register uint32_t r0 asm("r0") = 0x18;
-  register uint32_t r1 asm("r1") = 0x20026;
-  asm volatile("svc 0x00123456" : : "r"(r0), "r"(r1));
-  while (1); /* ne devrait pas arriver */
-}
-
-static struct event *ready_head = NULL;
-
-static char input_line[80];
-static uint8_t input_offset = 0;
-
-static void event_post_front(struct event *evt)
-{
-  if (evt->posted)
-    return;
-  evt->posted = TRUE;
-  evt->next = ready_head;
-  ready_head = evt;
-}
-
-static struct event *event_pop(void)
-{
-  struct event *evt = ready_head;
-  if (evt == NULL)
-    return NULL;
-  ready_head = evt->next;
-  evt->next = NULL;
-  evt->posted = FALSE;
-  return evt;
-}
-
 static void sleep_until_next_event(void)
 {
   core_disable_interrupts();
@@ -77,8 +41,6 @@ static void sleep_until_next_event(void)
   }
   core_enable_interrupts();
 }
-
-
 
 void shell(char *cmd_line, uint8_t cmd_len)
 {
@@ -90,6 +52,7 @@ void shell(char *cmd_line, uint8_t cmd_len)
       cmd_line[4] == 'r')
   {
     clear_screen(UART0);
+    display_status(UART0, secondes, total_events);
     print_prompt(UART0);
   }
   else if (cmd_len == 4 &&
@@ -101,12 +64,23 @@ void shell(char *cmd_line, uint8_t cmd_len)
     uart_send_string(UART0, "\r\nBye!\r\n");
     qemu_exit();
   }
+  else if (cmd_len > 5 &&
+           cmd_line[0] == 'e' &&
+           cmd_line[1] == 'c' &&
+           cmd_line[2] == 'h' &&
+           cmd_line[3] == 'o' &&
+           cmd_line[4] == ' ')
+  {
+    uart_send_string(UART0, "\r\nEchoing: ");
+    uart_send_string(UART0, cmd_line + 5);
+    uart_send_string(UART0, "\r\n");
+    print_prompt(UART0);
+  }
   else
   {
-   print_prompt(UART0);
+    print_prompt(UART0);
   }
 }
-
 
 static void rx_bottom_handler(void *cookie)
 {
@@ -121,6 +95,8 @@ static void blink_bottom_handler(void *cookie)
   {
     cursor_hide(UART0);
     cursor_is_visible = FALSE;
+    secondes += 1;
+    display_status(UART0, secondes, total_events);
   }
   else
   {
@@ -128,7 +104,6 @@ static void blink_bottom_handler(void *cookie)
     cursor_is_visible = TRUE;
   }
 }
-
 
 static void uart0_irq_handler(uint32_t irq, void *cookie)
 {
@@ -145,7 +120,7 @@ static void uart0_irq_handler(uint32_t irq, void *cookie)
 
   /* Clear RX interrupt */
   mmio_write32(UART0, UART_ICR, UART_RXIC); // Netooyer le flag d'interruption
-  event_post_front(&rx_event);
+  event_post_front(&rx_event, &event_count, &total_events, &ready_head);
 }
 
 static void uart0_irq_init(void)
@@ -165,7 +140,7 @@ static void timer1_irq_handler(uint32_t irq, void *cookie)
 
   /* Ack timer interrupt */
   timer1->IntClr = 1;
-  event_post_front(&blink_event);
+  event_post_front(&blink_event, &event_count, &total_events, &ready_head);
 }
 
 static void timer1_irq_init(void)
@@ -175,8 +150,8 @@ static void timer1_irq_init(void)
    * 500000 ticks -> 0.5s, so cursor toggles every 500 ms.
    */
   timer1->Control = 0x00;
-  timer1->Load = 200000;
-  timer1->BGLoad = 200000;
+  timer1->Load = 500000;
+  timer1->BGLoad = 500000;
   timer1->IntClr = 1;
   /* Enable=1, Periodic=1, IntEnable=1, 32-bit counter */
   timer1->Control = 0xE2;
@@ -251,7 +226,7 @@ static void process_ring(void)
     {
       shell(input_line, input_offset);
       input_offset = 0;
-       continue;  
+      continue;
     }
     else
     {
@@ -270,9 +245,12 @@ static void process_ring(void)
  */
 void _start()
 {
+  clear_screen(UART0);
+  uart_send_string(UART0, "\n");
   uart_send_string(UART0, "\nFor information:\n");
   uart_send_string(UART0, "  - Quit with \"C-a c\" to get to the QEMU console.\n");
   uart_send_string(UART0, "  - Then type in \"quit\" to stop QEMU.\n");
+  uart_send_string(UART0, "  - type in my console   \"quit\" \n");
   uart_send_string(UART0, "\n -- My console -- \n");
 
   timer_init();
@@ -284,11 +262,12 @@ void _start()
 
   cursor_hide(UART0);
   cursor_is_visible = FALSE;
+  display_status(UART0, secondes, total_events);
   print_prompt(UART0);
 
   while (1)
   {
-    struct event *evt = event_pop();
+    struct event *evt = event_pop(&event_count, &ready_head);
     if (evt != NULL)
     {
       evt->react(evt->cookie);
