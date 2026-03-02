@@ -13,10 +13,8 @@ Simulation d'un système embarqué ARM sur QEMU (board `versatilepb`).
 ```bash
 # Compiler
 make
-
 # Lancer
 make run
-
 # Déboguer
 make debug
 ```
@@ -59,5 +57,5 @@ terminal_funct.c — fonctions d'affichage ANSI
 
 
 ## Worklog
-
-- 2025.givent
+Le fichier worklog à la racine du projet
+- worklog.md

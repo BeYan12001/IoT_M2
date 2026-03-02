@@ -187,6 +187,7 @@ Pourquoi c’est utile :
 ## 7 étape : Ring method
 La méthode du ring buffer consiste à utiliser un buffer circulaire de taille fixe pour assurer une communication sûre entre l’ISR UART et la boucle principale, sans allocation dynamique ni verrou. Deux buffers sont nécessaires : un pour la transmission (TX) et un pour la réception (RX). En transmission, la boucle principale écrit les données dans le ring TX, puis l’ISR les envoie vers l’UART dès que le matériel est prêt. En réception, l’ISR lit les données de l’UART et les place dans le ring RX pour traitement ultérieur.
 
-Le système est saturé si le débit de production dépasse la capacité de transmission de l’UART, ce qui provoque un remplissage complet du ring. Si le ring se vide régulièrement, le débit est suffisant. 
+Le système est saturé si le débit de production dépasse la capacité de transmission de l’UART, ce qui provoque un remplissage complet du ring. Si le ring se vide régulièrement, le débit est suffisant.  
+ 
 **Attention**
 Avec les FIFO TX désactivées (comme sous QEMU), l’UART ne transmet qu’un octet à la fois, ce qui rend le ring essentiel pour absorber les variations de débit et éviter les pertes de données.

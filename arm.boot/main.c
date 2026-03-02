@@ -58,7 +58,7 @@ void shell(char *cmd_line, uint8_t cmd_len)
            cmd_line[2] == 'i' &&
            cmd_line[3] == 't')
   {
-    uart_send_string(UART0, "\r\nBye!\r\n"); // message de fin stylé
+    uart_send_string(UART0, "\r\nBye! A la prochaine!\r\n"); // message de fin stylé
     qemu_exit();
   }
   // commande echo (faut que ca fasse plus de 5 chars sinon ya rien apres le espace)
@@ -188,7 +188,7 @@ void _start()
     }
     else
     {
-      sleep_until_next_event(); // pas d'event -> on dort
+      sleep_until_next_event(); // pas d'event -> on dort et on attend de se reveiller avec une interruption (timer ou uart)
     }
   }
 }
